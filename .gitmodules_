@@ -1,0 +1,9 @@
+[submodule "lib/efp"]
+	path = lib/efp
+	url = http://github.com/cwahn/efp
+[submodule "efp-rt-log"]
+	path = lib/efp-rt-log
+	url = http://github.com/cwahn/efp-rt-log
+[submodule "lib/websocketpp"]
+	path = lib/websocketpp
+	url = https://github.com/zaphoyd/websocketpp.git
