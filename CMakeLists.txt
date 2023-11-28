@@ -25,4 +25,7 @@ set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
 
+add_compile_options(-pthread)
+set(CMAKE_CXX_FLAGS -pthread)
+
 add_subdirectory(lib)
