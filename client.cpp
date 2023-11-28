@@ -1,75 +1,83 @@
-#include <set>
+#include <iostream>
 
 #include "rt_log.hpp"
 
 #define ASIO_STANDALONE // Not using boost but c++ standard libs
-#include <websocketpp/config/asio_no_tls.hpp>
-#include <websocketpp/server.hpp>
+
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
 
 using namespace efp;
 
-typedef websocketpp::server<websocketpp::config::asio> server;
+typedef websocketpp::client<websocketpp::config::asio_client> client;
 
-using websocketpp::connection_hdl;
 using websocketpp::lib::bind;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 
-class broadcast_server
+// pull out the type of messages sent by our config
+typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
+
+// This message handler will be invoked once for each incoming message. It
+// prints the message and then sends a copy of the message back to the server.
+void on_message(client *c, websocketpp::connection_hdl hdl, message_ptr msg)
 {
-public:
-    broadcast_server()
-    {
-        m_server.init_asio();
-
-        m_server.set_open_handler(bind(&broadcast_server::on_open, this, ::_1));
-        m_server.set_close_handler(bind(&broadcast_server::on_close, this, ::_1));
-        m_server.set_message_handler(bind(&broadcast_server::on_message, this, ::_1, ::_2));
-    }
-
-    void on_open(connection_hdl hdl)
-    {
-        info("Connection opened");
-        m_connections.push_back(hdl);
-    }
-
-    void on_close(connection_hdl hdl)
-    {
-        info("Connection closed");
-        const auto maybe_index = find_index([&](auto x)
-                                            { return x.lock() == hdl.lock(); },
-                                            m_connections);
-        if (maybe_index)
-            m_connections.erase(maybe_index.value());
-    }
-
-    void on_message(connection_hdl hdl, server::message_ptr msg)
-    {
-        info("Connection closed");
-        const auto non_self_connections = filter([&](auto x)
-                                                 { return x.lock() != hdl.lock(); },
-                                                 m_connections);
-        for_each([&](auto conn)
-                 { m_server.send(conn, msg); },
-                 non_self_connections);
-    }
-
-    void run(uint16_t port)
-    {
-        m_server.listen(port);
-        m_server.start_accept();
-        m_server.run();
-    }
-
-private:
-    server m_server;
-    Vector<connection_hdl> m_connections;
-};
-
-int main()
-{
-    info("Starting WebSocket server");
-
-    broadcast_server server;
-    server.run(9002);
+    std::cout << "on_message called with hdl: " << hdl.lock().get()
+              << " and message: " << msg->get_payload()
+              << std::endl;
 }
+
+int main(int argc, char *argv[])
+{
+    // Create a client endpoint
+    client c;
+
+    c.clear_access_channels(websocketpp::log::alevel::all);
+    c.clear_error_channels(websocketpp::log::elevel::all);
+
+    std::string uri = "ws://localhost:9002";
+    if (argc == 2)
+        uri = argv[1];
+
+    // Set logging to be pretty verbose (everything except message payloads)
+    c.set_access_channels(websocketpp::log::alevel::all);
+    c.clear_access_channels(websocketpp::log::alevel::frame_payload);
+
+    // Initialize ASIO
+    c.init_asio();
+
+    // Register our message handler
+    c.set_message_handler(bind(&on_message, &c, ::_1, ::_2));
+
+    websocketpp::lib::error_code ec;
+    client::connection_ptr con = c.get_connection(uri, ec);
+
+    if (ec)
+    {
+        std::cout << "could not create connection because: " << ec.message() << std::endl;
+        return 0;
+    }
+
+    c.connect(con);
+    std::thread th([&]()
+                   {
+                       info("Spawning input taking thread");
+                       while (true)
+                       {
+                           std::string line;
+                        //    std::cout << "> ";
+                           std::getline(std::cin, line);
+
+                           debug("Sending message");
+
+                        //    websocketpp::lib::error_code ec;
+                            con->send(line);
+
+                           if (ec)
+                               std::cout << "Echo failed because: " << ec.message() << std::endl;
+                       }
+
+                       warn("Exiting input thread"); });
+    c.run();
+}
+//    c.send(hdl, line, msg->get_opcode(), ec);

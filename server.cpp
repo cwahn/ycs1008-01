@@ -20,6 +20,9 @@ class broadcast_server
 public:
     broadcast_server()
     {
+        m_server.clear_access_channels(websocketpp::log::alevel::all);
+        m_server.clear_error_channels(websocketpp::log::elevel::all);
+
         m_server.init_asio();
 
         m_server.set_open_handler(bind(&broadcast_server::on_open, this, ::_1));
@@ -45,7 +48,7 @@ public:
 
     void on_message(connection_hdl hdl, server::message_ptr msg)
     {
-        info("Connection closed");
+        info("Message received");
         const auto non_self_connections = filter([&](auto x)
                                                  { return x.lock() != hdl.lock(); },
                                                  m_connections);
