@@ -11,13 +11,13 @@ include_directories(lib/asio-1.28.0/include)
 
 add_executable(ycs-1008-01-ws-server server.cpp)
 target_link_libraries(ycs-1008-01-ws-server PRIVATE
-    efp_log 
+    efp_logger 
     Websockets
     )
 
 add_executable(ycs-1008-01-ws-client client.cpp)
 target_link_libraries(ycs-1008-01-ws-client PRIVATE
-    efp_log 
+    efp_logger 
     Websockets
     )
 

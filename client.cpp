@@ -1,6 +1,9 @@
 #include <iostream>
+#include <string>
+#include <chrono>
+#include <thread>
 
-#include "rt_log.hpp"
+#include "logger.hpp"
 
 #define ASIO_STANDALONE // Not using boost but c++ standard libs
 
@@ -27,25 +30,49 @@ void on_message(client *c, websocketpp::connection_hdl hdl, message_ptr msg)
               << std::endl;
 }
 
+#include <termios.h>
+#include <unistd.h>
+
+char getch()
+{
+    char buf = 0;
+    struct termios old = {0};
+    if (tcgetattr(0, &old) < 0)
+        perror("tcsetattr()");
+    old.c_lflag &= ~ICANON;
+    old.c_lflag &= ~ECHO;
+    old.c_cc[VMIN] = 1;
+    old.c_cc[VTIME] = 0;
+    if (tcsetattr(0, TCSANOW, &old) < 0)
+        perror("tcsetattr ICANON");
+    if (read(0, &buf, 1) < 0)
+        perror("read()");
+    old.c_lflag |= ICANON;
+    old.c_lflag |= ECHO;
+    if (tcsetattr(0, TCSADRAIN, &old) < 0)
+        perror("tcsetattr ~ICANON");
+    return buf;
+}
+
 int main(int argc, char *argv[])
 {
-    // Create a client endpoint
-    client c;
-
-    c.clear_access_channels(websocketpp::log::alevel::all);
-    c.clear_error_channels(websocketpp::log::elevel::all);
-
     std::string uri = "ws://localhost:9002";
+
     if (argc == 2)
         uri = argv[1];
 
-    // Set logging to be pretty verbose (everything except message payloads)
-    c.set_access_channels(websocketpp::log::alevel::all);
-    c.clear_access_channels(websocketpp::log::alevel::frame_payload);
+    // Create a client endpoint
+    client c;
 
     // Initialize ASIO
     c.init_asio();
 
+    // c.clear_access_channels(websocketpp::log::alevel::none);
+    c.clear_error_channels(websocketpp::log::elevel::none);
+
+    // // Set logging to be pretty verbose (everything except message payloads)
+    // c.set_access_channels(websocketpp::log::alevel::all);
+    c.clear_access_channels(websocketpp::log::alevel::frame_payload);
     // Register our message handler
     c.set_message_handler(bind(&on_message, &c, ::_1, ::_2));
 
@@ -59,25 +86,38 @@ int main(int argc, char *argv[])
     }
 
     c.connect(con);
+
+    int position = 0;
     std::thread th([&]()
                    {
-                       info("Spawning input taking thread");
-                       while (true)
-                       {
-                           std::string line;
-                        //    std::cout << "> ";
-                           std::getline(std::cin, line);
+        info("Spawning input taking thread");
+        while (true)
+        {
+            //    std::string line;
+            // //    std::cout << "> ";
+            //    std::getline(std::cin, line);
 
-                           debug("Sending message");
+            //    debug("Sending message");
 
-                        //    websocketpp::lib::error_code ec;
-                            con->send(line);
+            // //    websocketpp::lib::error_code ec;
+            //     con->send(line);
 
-                           if (ec)
-                               std::cout << "Echo failed because: " << ec.message() << std::endl;
-                       }
+            switch (getch())
+            {
+            case 65:
+                con->send("p" + std::to_string(++position));
+                break;
+            case 66:
+                con->send("p" + std::to_string(--position));
+                break;
+            }
+            std::cout << "Sent position: " << position << std::endl;
 
-                       warn("Exiting input thread"); });
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000/60));
+
+        }
+
+            warn("Exiting input thread"); });
     c.run();
 }
 //    c.send(hdl, line, msg->get_opcode(), ec);

@@ -1,6 +1,6 @@
 #include <set>
 
-#include "rt_log.hpp"
+#include "logger.hpp"
 
 #define ASIO_STANDALONE // Not using boost but c++ standard libs
 #include <websocketpp/config/asio_no_tls.hpp>
@@ -20,8 +20,8 @@ class broadcast_server
 public:
     broadcast_server()
     {
-        m_server.clear_access_channels(websocketpp::log::alevel::all);
-        m_server.clear_error_channels(websocketpp::log::elevel::all);
+        m_server.clear_access_channels(websocketpp::log::alevel::none);
+        m_server.clear_error_channels(websocketpp::log::elevel::none);
 
         m_server.init_asio();
 
